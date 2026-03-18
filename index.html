@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开发工具包</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 24px;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            gap: 16px;
+            padding: 16px;
+        }
+        .sidebar {
+            width: 240px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .menu-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 15px;
+            color: #1f2937;
+            transition: background 0.15s;
+        }
+        .menu-item:hover {
+            background: #f3f4f6;
+        }
+        .submenu {
+            display: none;
+            margin: 4px 0 8px 0;
+        }
+        .submenu.open {
+            display: block;
+        }
+        .submenu-item {
+            padding: 10px 16px 10px 32px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 6px;
+            color: #4b5563;
+            transition: all 0.15s;
+            margin: 2px 0;
+        }
+        .submenu-item:hover {
+            background: #f9fafb;
+            color: #667eea;
+            transform: translateX(2px);
+        }
+        .submenu-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 500;
+        }
+        .open-new {
+            opacity: 0;
+            font-size: 12px;
+            padding: 4px 8px;
+            background: rgba(0,0,0,0.08);
+            border-radius: 4px;
+            transition: opacity 0.2s;
+        }
+        .submenu-item:hover .open-new {
+            opacity: 1;
+        }
+        .submenu-item.active .open-new {
+            background: rgba(255,255,255,0.2);
+        }
+        .open-new:hover {
+            background: rgba(0,0,0,0.12);
+        }
+        .submenu-item.active .open-new:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .content {
+            flex: 1;
+            overflow: hidden;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 12px;
+        }
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛠️ 开发工具包</h1>
+    </div>
+    <div class="main">
+        <div class="sidebar" id="sidebar"></div>
+        <div class="content">
+            <iframe id="mainFrame"></iframe>
+        </div>
+    </div>
+</body>
+<script>
+    const menuConfig = [
+        {
+            id: 'network',
+            name: '📡 网络',
+            open: true,
+            children: [
+                { name: 'WebSocket 调试', uri: 'network/websocket.html', active: true },
+                { name: 'SSE 调试', uri: 'network/sse.html' }
+            ]
+        }
+    ];
+
+    function renderMenu() {
+        const sidebar = document.getElementById('sidebar');
+        menuConfig.forEach(menu => {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'menu-item';
+            menuItem.textContent = menu.name;
+            menuItem.onclick = () => toggleMenu(menu.id);
+            sidebar.appendChild(menuItem);
+
+            const submenu = document.createElement('div');
+            submenu.id = menu.id;
+            submenu.className = 'submenu' + (menu.open ? ' open' : '');
+            menu.children.forEach(item => {
+                const subItem = document.createElement('div');
+                subItem.className = 'submenu-item' + (item.active ? ' active' : '');
+                subItem.onclick = function() { loadPage(item.uri, this); };
+                subItem.innerHTML = `<span>${item.name}</span><span class="open-new" onclick="event.stopPropagation(); window.open('${item.uri}')">↗</span>`;
+                submenu.appendChild(subItem);
+                if (item.active) document.getElementById('mainFrame').src = item.uri;
+            });
+            sidebar.appendChild(submenu);
+        });
+    }
+
+    function toggleMenu(id) {
+        document.getElementById(id).classList.toggle('open');
+    }
+    function loadPage(url, el) {
+        document.getElementById('mainFrame').src = url;
+        document.querySelectorAll('.submenu-item').forEach(item => item.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    renderMenu();
+</script>
+</html>
