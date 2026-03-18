@@ -152,6 +152,44 @@
             font-size: 11px;
             margin-right: 10px;
         }
+        .history-list {
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .history-item {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .history-item:hover {
+            background: #e3f2fd;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .history-url {
+            flex: 1;
+            font-size: 13px;
+            color: #333;
+        }
+        .btn-delete {
+            background: #f44336;
+            color: white;
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .btn-delete:hover {
+            background: #da190b;
+        }
     </style>
 </head>
 <body>
@@ -162,6 +200,7 @@
             <div class="input-group">
                 <label for="wsUrl">WebSocket 服务器地址:</label>
                 <input type="text" id="wsUrl" placeholder="输入 WebSocket 服务器地址，例如：ws://localhost:8080">
+                <div id="historyList" class="history-list" style="display: none;"></div>
             </div>
             
             <div class="button-group">
@@ -176,7 +215,7 @@
         
         <div class="message-area">
             <label for="message">发送消息:</label>
-            <textarea id="message" rows="4" placeholder="输入要发送的消息...">Hello WebSocket!</textarea>
+            <textarea id="message" rows="4" placeholder="输入要发送的消息...&#10;Hello WebSocket!"></textarea>
             <div class="button-group" style="margin-top: 10px;">
                 <button class="btn-send" onclick="sendMessage()">发送消息</button>
                 <button class="btn-clear" onclick="clearLog()">清空日志</button>
@@ -191,6 +230,47 @@
 
     <script>
         let ws = null;
+        const HISTORY_KEY = 'ws_history';
+        const MAX_HISTORY = 10;
+
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            const historyList = document.getElementById('historyList');
+
+            if (history.length === 0) {
+                historyList.style.display = 'none';
+                return;
+            }
+
+            historyList.style.display = 'block';
+            historyList.innerHTML = history.map(url => `
+                <div class="history-item">
+                    <span class="history-url" onclick="selectHistory('${url}')">${url}</span>
+                    <button class="btn-delete" onclick="deleteHistory('${url}')">删除</button>
+                </div>
+            `).join('');
+        }
+
+        function saveHistory(url) {
+            if (!url.trim()) return;
+            let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            history = history.filter(item => item !== url);
+            history.unshift(url);
+            if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            loadHistory();
+        }
+
+        function selectHistory(url) {
+            document.getElementById('wsUrl').value = url;
+        }
+
+        function deleteHistory(url) {
+            let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            history = history.filter(item => item !== url);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            loadHistory();
+        }
 
         function connect() {
             const url = document.getElementById('wsUrl').value;
@@ -209,6 +289,7 @@
                 ws.onopen = function(event) {
                     updateStatus('connected', '已连接');
                     addLog('WebSocket 连接成功', 'info');
+                    saveHistory(url);
                 };
 
                 ws.onmessage = function(event) {
@@ -293,6 +374,7 @@
 
         // 页面加载完成提示
         window.onload = function() {
+            loadHistory();
             addLog('WebSocket 调试工具已就绪', 'info');
             addLog('提示: 按 Ctrl+Enter 快速发送消息', 'info');
         };
