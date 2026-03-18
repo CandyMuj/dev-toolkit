@@ -34,12 +34,16 @@
             font-weight: bold;
             color: #555;
         }
-        input[type="text"] {
+        input[type="text"], select, textarea {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
+        }
+        textarea {
+            font-family: monospace;
+            resize: vertical;
         }
         .button-group {
             display: flex;
@@ -120,6 +124,33 @@
             font-size: 11px;
             margin-right: 10px;
         }
+        .header-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .header-row input {
+            flex: 1;
+        }
+        .header-row button {
+            padding: 10px 15px;
+            font-size: 14px;
+        }
+        .add-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+        .add-btn:hover {
+            background-color: #0b7dda;
+        }
+        .remove-btn {
+            background-color: #f44336 !important;
+            color: white;
+        }
+        .remove-btn:hover {
+            background-color: #da190b !important;
+        }
     </style>
 </head>
 <body>
@@ -130,15 +161,24 @@
             <label for="urlInput">SSE 接口地址:</label>
             <input type="text" id="urlInput" value="http://localhost:8080/api/sse" placeholder="输入 SSE 接口地址">
         </div>
-        
+
         <div class="input-group">
-            <label for="authToken">Authorization Token (可选):</label>
-            <input type="text" id="authToken" placeholder="Bearer your-token-here">
+            <label for="methodSelect">请求方式:</label>
+            <select id="methodSelect">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+            </select>
         </div>
-        
+
         <div class="input-group">
-            <label for="customHeader">自定义 Header (可选):</label>
-            <input type="text" id="customHeader" placeholder="X-Custom-Header: value">
+            <label for="bodyInput">请求体 (Body):</label>
+            <textarea id="bodyInput" rows="4" placeholder='输入请求体，如: {"key": "value"}'></textarea>
+        </div>
+
+        <div class="input-group">
+            <label>自定义 Headers:</label>
+            <div id="headersContainer"></div>
         </div>
         
         <div class="button-group">
@@ -154,157 +194,201 @@
             <div id="messages"></div>
         </div>
     </div>
+</body>
+<script>
+    let eventSource = null;
+    let headerCount = 0;
 
-    <script>
-        let eventSource = null;
+    // 初始化默认 header 行
+    window.addEventListener('DOMContentLoaded', () => {
+        addHeaderRow();
+    });
 
-        // 使用 fetch 方式连接 SSE (支持自定义 header)
-        async function connectSSE() {
-            const url = document.getElementById('urlInput').value;
-            const authToken = document.getElementById('authToken').value;
-            const customHeader = document.getElementById('customHeader').value;
-            
-            if (!url) {
-                alert('请输入 SSE 接口地址');
-                return;
+    // 添加 header 行
+    function addHeaderRow() {
+        const container = document.getElementById('headersContainer');
+        const row = document.createElement('div');
+        row.className = 'header-row';
+        row.id = `header-${headerCount++}`;
+        row.innerHTML = `
+            <input type="text" placeholder="Header 名称 (如: Authorization)" class="header-name">
+            <input type="text" placeholder="Header 值 (如: Bearer token)" class="header-value">
+            <button class="add-btn" onclick="addHeaderRow()">+ 添加</button>
+            <button class="remove-btn" onclick="removeHeaderRow('${row.id}')">- 删除</button>
+        `;
+        container.appendChild(row);
+        updateRemoveButtons();
+    }
+
+    // 删除 header 行
+    function removeHeaderRow(id) {
+        const container = document.getElementById('headersContainer');
+        if (container.children.length > 1) {
+            document.getElementById(id).remove();
+            updateRemoveButtons();
+        }
+    }
+
+    // 更新删除按钮状态
+    function updateRemoveButtons() {
+        const container = document.getElementById('headersContainer');
+        const removeButtons = container.querySelectorAll('.remove-btn');
+        const shouldDisable = container.children.length === 1;
+        removeButtons.forEach(btn => {
+            btn.disabled = shouldDisable;
+        });
+    }
+
+    // 使用 fetch 方式连接 SSE (支持自定义 header)
+    async function connectSSE() {
+        const url = document.getElementById('urlInput').value;
+        const method = document.getElementById('methodSelect').value;
+        const body = document.getElementById('bodyInput').value.trim();
+
+        if (!url) {
+            alert('请输入 SSE 接口地址');
+            return;
+        }
+
+        // 构建 headers
+        const headers = {};
+        const headerRows = document.querySelectorAll('.header-row');
+        headerRows.forEach(row => {
+            const name = row.querySelector('.header-name').value.trim();
+            const value = row.querySelector('.header-value').value.trim();
+            if (name && value) {
+                headers[name] = value;
+            }
+        });
+
+        try {
+            // 构建请求配置
+            const fetchOptions = {
+                method: method,
+                headers: headers,
+            };
+
+            // 如果有 body 且不是 GET 请求，添加 body
+            if (body && method !== 'GET') {
+                fetchOptions.body = body;
             }
 
-            // 构建 headers
-            const headers = {};
-            
-            if (authToken) {
-                headers['Authorization'] = authToken;
+            // 使用 fetch 发起请求
+            const response = await fetch(url, fetchOptions);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
-            if (customHeader) {
-                const [headerName, ...headerValueParts] = customHeader.split(':');
-                const headerValue = headerValueParts.join(':').trim();
-                if (headerName && headerValue) {
-                    headers[headerName.trim()] = headerValue;
+
+            // 读取流
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            updateStatus('connected', '已连接');
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnectBtn').disabled = false;
+
+            // 持续读取数据
+            let buffer = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                    addMessage('连接已关闭', 'info');
+                    disconnectSSE();
+                    break;
                 }
-            }
 
-            try {
-                // 使用 fetch 发起请求
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: headers,
-                });
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop(); // 保留不完整的数据
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                // 读取流
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-
-                updateStatus('connected', '已连接');
-                document.getElementById('connectBtn').disabled = true;
-                document.getElementById('disconnectBtn').disabled = false;
-
-                // 持续读取数据
-                let buffer = '';
-                while (true) {
-                    const { done, value } = await reader.read();
-                    
-                    if (done) {
-                        addMessage('连接已关闭', 'info');
-                        disconnectSSE();
-                        break;
+                lines.forEach(line => {
+                    if (line.trim()) {
+                        parseSSEMessage(line);
                     }
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n\n');
-                    buffer = lines.pop(); // 保留不完整的数据
-
-                    lines.forEach(line => {
-                        if (line.trim()) {
-                            parseSSEMessage(line);
-                        }
-                    });
-                }
-            } catch (error) {
-                addMessage('连接错误: ' + error.message, 'error');
-                updateStatus('disconnected', '连接失败');
-                document.getElementById('connectBtn').disabled = false;
-                document.getElementById('disconnectBtn').disabled = true;
+                });
             }
-        }
-
-        // 解析 SSE 消息
-        function parseSSEMessage(message) {
-            const lines = message.split('\n');
-            let data = '';
-            let event = 'message';
-            let id = '';
-
-            lines.forEach(line => {
-                if (line.startsWith('data:')) {
-                    data += line.substring(5).trim() + '\n';
-                } else if (line.startsWith('event:')) {
-                    event = line.substring(6).trim();
-                } else if (line.startsWith('id:')) {
-                    id = line.substring(3).trim();
-                }
-            });
-
-            if (data) {
-                addMessage(data.trim(), 'message', event, id);
-            }
-        }
-
-        // 断开连接
-        function disconnectSSE() {
-            if (eventSource) {
-                eventSource.close();
-                eventSource = null;
-            }
-            
-            updateStatus('disconnected', '已断开');
+        } catch (error) {
+            addMessage('连接错误: ' + error.message, 'error');
+            updateStatus('disconnected', '连接失败');
             document.getElementById('connectBtn').disabled = false;
             document.getElementById('disconnectBtn').disabled = true;
         }
+    }
 
-        // 更新状态
-        function updateStatus(status, text) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.className = 'status ' + status;
-            statusDiv.textContent = '状态: ' + text;
-        }
+    // 解析 SSE 消息
+    function parseSSEMessage(message) {
+        const lines = message.split('\n');
+        let data = '';
+        let event = 'message';
+        let id = '';
 
-        // 添加消息到显示区域
-        function addMessage(text, type = 'message', event = '', id = '') {
-            const messagesDiv = document.getElementById('messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message' + (type === 'error' ? ' error' : '');
-            
-            const timestamp = new Date().toLocaleTimeString();
-            let content = `<span class="timestamp">[${timestamp}]</span> `;
-            
-            if (event) {
-                content += `<strong>[${event}]</strong> `;
+        lines.forEach(line => {
+            if (line.startsWith('data:')) {
+                data += line.substring(5).trim() + '\n';
+            } else if (line.startsWith('event:')) {
+                event = line.substring(6).trim();
+            } else if (line.startsWith('id:')) {
+                id = line.substring(3).trim();
             }
-            if (id) {
-                content += `<small>(id: ${id})</small> `;
-            }
-            
-            content += text;
-            messageDiv.innerHTML = content;
-            
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        // 清空消息
-        function clearMessages() {
-            document.getElementById('messages').innerHTML = '';
-        }
-
-        // 页面卸载时断开连接
-        window.addEventListener('beforeunload', () => {
-            disconnectSSE();
         });
-    </script>
-</body>
+
+        if (data) {
+            addMessage(data.trim(), 'message', event, id);
+        }
+    }
+
+    // 断开连接
+    function disconnectSSE() {
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+        
+        updateStatus('disconnected', '已断开');
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('disconnectBtn').disabled = true;
+    }
+
+    // 更新状态
+    function updateStatus(status, text) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.className = 'status ' + status;
+        statusDiv.textContent = '状态: ' + text;
+    }
+
+    // 添加消息到显示区域
+    function addMessage(text, type = 'message', event = '', id = '') {
+        const messagesDiv = document.getElementById('messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message' + (type === 'error' ? ' error' : '');
+        
+        const timestamp = new Date().toLocaleTimeString();
+        let content = `<span class="timestamp">[${timestamp}]</span> `;
+        
+        if (event) {
+            content += `<strong>[${event}]</strong> `;
+        }
+        if (id) {
+            content += `<small>(id: ${id})</small> `;
+        }
+        
+        content += text;
+        messageDiv.innerHTML = content;
+        
+        messagesDiv.appendChild(messageDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // 清空消息
+    function clearMessages() {
+        document.getElementById('messages').innerHTML = '';
+    }
+
+    // 页面卸载时断开连接
+    window.addEventListener('beforeunload', () => {
+        disconnectSSE();
+    });
+</script>
 </html>
