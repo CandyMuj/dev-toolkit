@@ -266,6 +266,10 @@
         document.getElementById('mainFrame').src = url;
         document.querySelectorAll('.submenu-item').forEach(item => item.classList.remove('active'));
         el.classList.add('active');
+        // 更新 URL 参数
+        const params = new URLSearchParams(location.search);
+        params.set('tool', url);
+        history.replaceState(null, '', '?' + params.toString());
         // 移动端选中后自动关闭侧边栏
         if (window.innerWidth <= 640) closeSidebar();
     }
