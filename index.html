@@ -283,5 +283,35 @@
     }
 
     renderMenu();
+    // 支持通过 URL 参数直接定位到具体工具页面，如 ?tool=network/sse.html
+    (function() {
+        const params = new URLSearchParams(location.search);
+        const tool = params.get('tool');
+        if (!tool) return;
+        // 遍历菜单找到匹配的子项并激活
+        for (const menu of menuConfig) {
+            for (const item of menu.children) {
+                if (item.uri === tool) {
+                    // 展开对应父菜单
+                    document.getElementById(menu.id).classList.add('open');
+                    // 加载页面并更新 active 状态
+                    const allItems = document.querySelectorAll('.submenu-item');
+                    allItems.forEach(el => el.classList.remove('active'));
+                    // 找到对应 DOM 并激活
+                    const submenuEl = document.getElementById(menu.id);
+                    const subItems = submenuEl.querySelectorAll('.submenu-item');
+                    const menuChildren = menu.children;
+                    for (let i = 0; i < menuChildren.length; i++) {
+                        if (menuChildren[i].uri === tool) {
+                            subItems[i].classList.add('active');
+                            break;
+                        }
+                    }
+                    document.getElementById('mainFrame').src = tool;
+                    return;
+                }
+            }
+        }
+    })();
 </script>
 </html>
