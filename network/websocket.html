@@ -227,157 +227,156 @@
             <div id="log" class="log-area"></div>
         </div>
     </div>
-
-    <script>
-        let ws = null;
-        const HISTORY_KEY = 'ws_history';
-        const MAX_HISTORY = 10;
-
-        function loadHistory() {
-            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            const historyList = document.getElementById('historyList');
-
-            if (history.length === 0) {
-                historyList.style.display = 'none';
-                return;
-            }
-
-            historyList.style.display = 'block';
-            historyList.innerHTML = history.map(url => `
-                <div class="history-item">
-                    <span class="history-url" onclick="selectHistory('${url}')">${url}</span>
-                    <button class="btn-delete" onclick="deleteHistory('${url}')">删除</button>
-                </div>
-            `).join('');
-        }
-
-        function saveHistory(url) {
-            if (!url.trim()) return;
-            let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            history = history.filter(item => item !== url);
-            history.unshift(url);
-            if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-            loadHistory();
-        }
-
-        function selectHistory(url) {
-            document.getElementById('wsUrl').value = url;
-        }
-
-        function deleteHistory(url) {
-            let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            history = history.filter(item => item !== url);
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-            loadHistory();
-        }
-
-        function connect() {
-            const url = document.getElementById('wsUrl').value;
-            
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                addLog('已经连接，请先断开', 'info');
-                return;
-            }
-
-            updateStatus('connecting', '连接中...');
-            addLog(`正在连接到: ${url}`, 'info');
-
-            try {
-                ws = new WebSocket(url);
-
-                ws.onopen = function(event) {
-                    updateStatus('connected', '已连接');
-                    addLog('WebSocket 连接成功', 'info');
-                    saveHistory(url);
-                };
-
-                ws.onmessage = function(event) {
-                    addLog(`收到消息: ${event.data}`, 'received');
-                };
-
-                ws.onerror = function(error) {
-                    addLog(`错误: ${error.message || '连接失败'}`, 'error');
-                    updateStatus('disconnected', '连接错误');
-                };
-
-                ws.onclose = function(event) {
-                    addLog(`连接关闭 (代码: ${event.code}, 原因: ${event.reason || '无'})`, 'info');
-                    updateStatus('disconnected', '未连接');
-                    ws = null;
-                };
-            } catch (error) {
-                addLog(`连接异常: ${error.message}`, 'error');
-                updateStatus('disconnected', '连接失败');
-            }
-        }
-
-        function disconnect() {
-            if (ws) {
-                ws.close();
-                addLog('主动断开连接', 'info');
-            } else {
-                addLog('当前没有活动连接', 'info');
-            }
-        }
-
-        function sendMessage() {
-            const message = document.getElementById('message').value;
-            
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                addLog('未连接到服务器，无法发送消息', 'error');
-                return;
-            }
-
-            if (!message.trim()) {
-                addLog('消息不能为空', 'error');
-                return;
-            }
-
-            try {
-                ws.send(message);
-                addLog(`发送消息: ${message}`, 'sent');
-            } catch (error) {
-                addLog(`发送失败: ${error.message}`, 'error');
-            }
-        }
-
-        function updateStatus(state, text) {
-            const statusEl = document.getElementById('status');
-            statusEl.className = `status ${state}`;
-            statusEl.textContent = `状态: ${text}`;
-        }
-
-        function addLog(message, type = 'info') {
-            const logEl = document.getElementById('log');
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${type}`;
-            
-            const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span>${message}`;
-            
-            logEl.appendChild(entry);
-            logEl.scrollTop = logEl.scrollHeight;
-        }
-
-        function clearLog() {
-            document.getElementById('log').innerHTML = '';
-            addLog('日志已清空', 'info');
-        }
-
-        // 支持回车发送
-        document.getElementById('message').addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        // 页面加载完成提示
-        window.onload = function() {
-            loadHistory();
-            addLog('WebSocket 调试工具已就绪', 'info');
-            addLog('提示: 按 Ctrl+Enter 快速发送消息', 'info');
-        };
-    </script>
 </body>
+<script>
+    let ws = null;
+    const HISTORY_KEY = 'ws_history';
+    const MAX_HISTORY = 10;
+
+    function loadHistory() {
+        const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        const historyList = document.getElementById('historyList');
+
+        if (history.length === 0) {
+            historyList.style.display = 'none';
+            return;
+        }
+
+        historyList.style.display = 'block';
+        historyList.innerHTML = history.map(url => `
+            <div class="history-item">
+                <span class="history-url" onclick="selectHistory('${url}')">${url}</span>
+                <button class="btn-delete" onclick="deleteHistory('${url}')">删除</button>
+            </div>
+        `).join('');
+    }
+
+    function saveHistory(url) {
+        if (!url.trim()) return;
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        history = history.filter(item => item !== url);
+        history.unshift(url);
+        if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        loadHistory();
+    }
+
+    function selectHistory(url) {
+        document.getElementById('wsUrl').value = url;
+    }
+
+    function deleteHistory(url) {
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        history = history.filter(item => item !== url);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        loadHistory();
+    }
+
+    function connect() {
+        const url = document.getElementById('wsUrl').value;
+        
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            addLog('已经连接，请先断开', 'info');
+            return;
+        }
+
+        updateStatus('connecting', '连接中...');
+        addLog(`正在连接到: ${url}`, 'info');
+
+        try {
+            ws = new WebSocket(url);
+
+            ws.onopen = function(event) {
+                updateStatus('connected', '已连接');
+                addLog('WebSocket 连接成功', 'info');
+                saveHistory(url);
+            };
+
+            ws.onmessage = function(event) {
+                addLog(`收到消息: ${event.data}`, 'received');
+            };
+
+            ws.onerror = function(error) {
+                addLog(`错误: ${error.message || '连接失败'}`, 'error');
+                updateStatus('disconnected', '连接错误');
+            };
+
+            ws.onclose = function(event) {
+                addLog(`连接关闭 (代码: ${event.code}, 原因: ${event.reason || '无'})`, 'info');
+                updateStatus('disconnected', '未连接');
+                ws = null;
+            };
+        } catch (error) {
+            addLog(`连接异常: ${error.message}`, 'error');
+            updateStatus('disconnected', '连接失败');
+        }
+    }
+
+    function disconnect() {
+        if (ws) {
+            ws.close();
+            addLog('主动断开连接', 'info');
+        } else {
+            addLog('当前没有活动连接', 'info');
+        }
+    }
+
+    function sendMessage() {
+        const message = document.getElementById('message').value;
+        
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            addLog('未连接到服务器，无法发送消息', 'error');
+            return;
+        }
+
+        if (!message.trim()) {
+            addLog('消息不能为空', 'error');
+            return;
+        }
+
+        try {
+            ws.send(message);
+            addLog(`发送消息: ${message}`, 'sent');
+        } catch (error) {
+            addLog(`发送失败: ${error.message}`, 'error');
+        }
+    }
+
+    function updateStatus(state, text) {
+        const statusEl = document.getElementById('status');
+        statusEl.className = `status ${state}`;
+        statusEl.textContent = `状态: ${text}`;
+    }
+
+    function addLog(message, type = 'info') {
+        const logEl = document.getElementById('log');
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${type}`;
+        
+        const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        entry.innerHTML = `<span class="timestamp">[${timestamp}]</span>${message}`;
+        
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() {
+        document.getElementById('log').innerHTML = '';
+        addLog('日志已清空', 'info');
+    }
+
+    // 支持回车发送
+    document.getElementById('message').addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+    // 页面加载完成提示
+    window.onload = function() {
+        loadHistory();
+        addLog('WebSocket 调试工具已就绪', 'info');
+        addLog('提示: 按 Ctrl+Enter 快速发送消息', 'info');
+    };
+</script>
 </html>
