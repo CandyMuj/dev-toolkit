@@ -151,6 +151,92 @@
         .remove-btn:hover {
             background-color: #da190b !important;
         }
+        .history-list {
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .history-item {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .history-item:hover {
+            background: #e3f2fd;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .history-url {
+            flex: 1;
+            font-size: 13px;
+            color: #333;
+        }
+        .btn-delete {
+            background: #f44336;
+            color: white;
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .btn-delete:hover {
+            background: #da190b;
+        }
+        .config-list {
+            margin-top: 5px;
+            padding-left: 20px;
+            display: none;
+        }
+        .config-item {
+            padding: 6px 8px;
+            margin: 5px 0;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .config-item:hover {
+            background: #f0f0f0;
+        }
+        .config-info {
+            flex: 1;
+            color: #666;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .config-method {
+            font-weight: bold;
+            color: #2196F3;
+        }
+        .config-preview {
+            font-size: 11px;
+            color: #999;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 400px;
+        }
+        .config-badge {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-right: 5px;
+        }
     </style>
 </head>
 <body>
@@ -160,6 +246,7 @@
         <div class="input-group">
             <label for="urlInput">SSE 接口地址:</label>
             <input type="text" id="urlInput" placeholder="输入 SSE 接口地址，例如：http://localhost:8080/api/sse">
+            <div id="historyList" class="history-list" style="display: none;"></div>
         </div>
 
         <div class="input-group">
@@ -198,11 +285,209 @@
 <script>
     let eventSource = null;
     let headerCount = 0;
+    const MAX_HISTORY = 10;
+    const HISTORY_KEY_URLS = 'sse_urls';
+    let activeUrl = null; // 当前展开的接口
 
     // 初始化默认 header 行
     window.addEventListener('DOMContentLoaded', () => {
         addHeaderRow();
+        loadHistory();
     });
+
+    // 加载历史记录（保留当前展开状态）
+    function loadHistory() {
+        const history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        const historyList = document.getElementById('historyList');
+        const urls = Object.keys(history).sort((a, b) => {
+            const aTime = Math.max(...history[a].map(c => c.timestamp || 0));
+            const bTime = Math.max(...history[b].map(c => c.timestamp || 0));
+            return bTime - aTime;
+        });
+
+        if (urls.length === 0) {
+            historyList.style.display = 'none';
+            activeUrl = null;
+            return;
+        }
+
+        // 如果当前展开的 URL 已不存在，重置
+        if (activeUrl && !history[activeUrl]) {
+            activeUrl = null;
+        }
+
+        historyList.style.display = 'block';
+        historyList.innerHTML = urls.map(url => {
+            const configs = history[url];
+            const configsHtml = configs.map((config, index) => {
+                const hasBody = config.body && config.body.trim();
+                const hasHeaders = config.headers && Object.keys(config.headers).length > 0;
+
+                // 生成预览信息
+                let previewHtml = '';
+                if (hasBody) {
+                    const bodyPreview = config.body.length > 50 ? config.body.substring(0, 50) + '...' : config.body;
+                    previewHtml += `<div class="config-preview">📝 Body: ${bodyPreview}</div>`;
+                }
+                if (hasHeaders) {
+                    // 处理 header 值的长度
+                    const processedHeaders = {};
+                    Object.entries(config.headers).forEach(([key, value]) => {
+                        processedHeaders[key] = value.length > 30 ? value.substring(0, 30) + '...' : value;
+                    });
+                    const headerJson = JSON.stringify(processedHeaders, null, 2);
+                    previewHtml += `<div class="config-preview">🔑 Headers: ${headerJson}</div>`;
+                }
+
+                return `
+                    <div class="config-item" onclick="selectConfig('${escapeHtml(url)}', ${index})">
+                        <span class="config-info">
+                            <div><span class="config-method">${config.method}</span></div>
+                            ${previewHtml}
+                        </span>
+                        <button class="btn-delete" onclick="event.stopPropagation(); deleteConfig('${escapeHtml(url)}', ${index})">删除</button>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="history-item">
+                    <span class="history-url" onclick="toggleConfigs('${escapeHtml(url)}')">${url}</span>
+                    <button class="btn-delete" onclick="event.stopPropagation(); deleteUrl('${escapeHtml(url)}')">删除</button>
+                </div>
+                <div id="configs-${escapeHtml(url)}" class="config-list" style="display: ${activeUrl === url ? 'block' : 'none'}">${configsHtml}</div>
+            `;
+        }).join('');
+    }
+
+    // 转义 HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 切换配置列表显示
+    function toggleConfigs(url) {
+        if (activeUrl === url) {
+            // 已展开，则收起
+            activeUrl = null;
+        } else {
+            activeUrl = url;
+        }
+        loadHistory();
+    }
+
+    // 保存历史记录
+    function saveHistory(url, method, body, headers) {
+        if (!url.trim()) return;
+
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+
+        if (!history[url]) {
+            history[url] = [];
+        }
+
+        const config = {
+            method: method,
+            body: body,
+            headers: headers,
+            timestamp: Date.now()
+        };
+
+        // 检查是否已存在相同配置
+        const existingIndex = history[url].findIndex(c =>
+            c.method === method &&
+            c.body === body &&
+            JSON.stringify(c.headers) === JSON.stringify(headers)
+        );
+
+        if (existingIndex >= 0) {
+            history[url][existingIndex].timestamp = Date.now();
+        } else {
+            history[url].push(config);
+            if (history[url].length > MAX_HISTORY) {
+                history[url].sort((a, b) => b.timestamp - a.timestamp);
+                history[url] = history[url].slice(0, MAX_HISTORY);
+            }
+        }
+
+        // 限制 URL 数量
+        const urls = Object.keys(history);
+        if (urls.length > MAX_HISTORY) {
+            const sortedUrls = urls.sort((a, b) => {
+                const aTime = Math.max(...history[a].map(c => c.timestamp || 0));
+                const bTime = Math.max(...history[b].map(c => c.timestamp || 0));
+                return bTime - aTime;
+            });
+            const urlsToKeep = sortedUrls.slice(0, MAX_HISTORY);
+            const newHistory = {};
+            urlsToKeep.forEach(u => newHistory[u] = history[u]);
+            history = newHistory;
+        }
+
+        localStorage.setItem(HISTORY_KEY_URLS, JSON.stringify(history));
+        loadHistory();
+    }
+
+    // 选择配置
+    function selectConfig(url, index) {
+        const history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        const config = history[url]?.[index];
+        if (!config) return;
+
+        document.getElementById('urlInput').value = url;
+        document.getElementById('methodSelect').value = config.method;
+        document.getElementById('bodyInput').value = config.body || '';
+
+        // 清空现有 headers
+        const container = document.getElementById('headersContainer');
+        container.innerHTML = '';
+        headerCount = 0;
+
+        // 填充 headers
+        const headers = config.headers || {};
+        const headerEntries = Object.entries(headers);
+        if (headerEntries.length === 0) {
+            addHeaderRow();
+        } else {
+            headerEntries.forEach(([name, value]) => {
+                const row = document.createElement('div');
+                row.className = 'header-row';
+                row.id = `header-${headerCount++}`;
+                row.innerHTML = `
+                    <input type="text" placeholder="Header 名称 (如: Authorization)" class="header-name" value="${escapeHtml(name)}">
+                    <input type="text" placeholder="Header 值 (如: Bearer token)" class="header-value" value="${escapeHtml(value)}">
+                    <button class="add-btn" onclick="addHeaderRow()">+ 添加</button>
+                    <button class="remove-btn" onclick="removeHeaderRow('${row.id}')">- 删除</button>
+                `;
+                container.appendChild(row);
+            });
+            updateRemoveButtons();
+        }
+    }
+
+    // 删除 URL
+    function deleteUrl(url) {
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        delete history[url];
+        localStorage.setItem(HISTORY_KEY_URLS, JSON.stringify(history));
+        loadHistory();
+    }
+
+    // 删除配置
+    function deleteConfig(url, index) {
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        if (history[url]) {
+            history[url].splice(index, 1);
+            if (history[url].length === 0) {
+                delete history[url];
+            }
+        }
+        localStorage.setItem(HISTORY_KEY_URLS, JSON.stringify(history));
+        loadHistory();
+    }
+
 
     // 添加 header 行
     function addHeaderRow() {
@@ -287,6 +572,9 @@
             updateStatus('connected', '已连接');
             document.getElementById('connectBtn').disabled = true;
             document.getElementById('disconnectBtn').disabled = false;
+
+            // 保存历史记录
+            saveHistory(url, method, body, headers);
 
             // 持续读取数据
             let buffer = '';
