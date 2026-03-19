@@ -286,7 +286,7 @@
     let eventSource = null;
     let headerCount = 0;
     const MAX_HISTORY = 10;
-    const HISTORY_KEY_URLS = 'sse_urls';
+    const HISTORY_KEY = 'sse_history';
     let activeUrl = null; // 当前展开的接口
 
     // 初始化默认 header 行
@@ -297,7 +297,7 @@
 
     // 加载历史记录（保留当前展开状态）
     function loadHistory() {
-        const history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
         const historyList = document.getElementById('historyList');
         const urls = Object.keys(history).sort((a, b) => {
             const aTime = Math.max(...history[a].map(c => c.timestamp || 0));
@@ -382,7 +382,7 @@
     function saveHistory(url, method, body, headers) {
         if (!url.trim()) return;
 
-        let history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
 
         if (!history[url]) {
             history[url] = [];
@@ -426,13 +426,13 @@
             history = newHistory;
         }
 
-        localStorage.setItem(HISTORY_KEY_URLS, JSON.stringify(history));
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
         loadHistory();
     }
 
     // 选择配置
     function selectConfig(url, index) {
-        const history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
         const config = history[url]?.[index];
         if (!config) return;
 
@@ -469,22 +469,22 @@
 
     // 删除 URL
     function deleteUrl(url) {
-        let history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
         delete history[url];
-        localStorage.setItem(HISTORY_KEY_URLS, JSON.stringify(history));
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
         loadHistory();
     }
 
     // 删除配置
     function deleteConfig(url, index) {
-        let history = JSON.parse(localStorage.getItem(HISTORY_KEY_URLS) || '{}');
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
         if (history[url]) {
             history[url].splice(index, 1);
             if (history[url].length === 0) {
                 delete history[url];
             }
         }
-        localStorage.setItem(HISTORY_KEY_URLS, JSON.stringify(history));
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
         loadHistory();
     }
 
