@@ -17,6 +17,12 @@
 - **历史记录**：基于 `localStorage` 保存历史接口，方便快速复用
 - **移动端适配**：响应式侧边栏，支持移动端使用
 - **多标签页**：支持通过 ↗ 按钮在新窗口独立打开单个工具
+- **直链定位**：通过 URL `?tool=` 参数直接打开指定工具，`tool` 的值为工具页面相对于 `index.html` 的完整路径，切换工具时 URL 自动更新，方便收藏或分享
+
+  ```
+  index.html?tool=network/websocket.html
+  index.html?tool=network/sse.html
+  ```
 
 ## 使用方式
 
