@@ -298,6 +298,10 @@
     // 支持通过 URL 参数直接定位到具体工具页面，如 ?tool=network/sse.html
     (function() {
         const params = new URLSearchParams(location.search);
+        // 支持 e=1 自动展开所有子菜单
+        if (params.get('e') === '1') {
+            document.querySelectorAll('.submenu').forEach(el => el.classList.add('open'));
+        }
         const tool = params.get('tool');
         if (!tool) return;
         // 遍历菜单找到匹配的子项并激活
